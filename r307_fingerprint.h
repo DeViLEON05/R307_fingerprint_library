@@ -25,7 +25,7 @@
 	#define FP_PASSWORD 0x00000000 // change this if you changed the default fp password
 	#define FP_BAUDRATE 115200	   // baudrate used to communicate with the Fingerprint
 	#define FP_TIMEOUT 2000		   // FP UART Communication Timeout
-	#define FP_SERIALDEBUG true		   // Serial debugging of the FP - set it to true to enable serial debugging 
+	//#define FP_SERIALDEBUG true		   // Serial debugging of the FP - set it to true to enable serial debugging 
 	
 	#define FP_CMDPACKET 0x1 // Command packet
 	#define FP_DATAPACKET 0x2 // Data packet, must follow command packet or acknowledge packet
@@ -145,9 +145,9 @@ class R307_Fingerprint {
 		boolean generateFpChar(int bufferId = 1);
 		boolean generateFpTemplate();
 		boolean downloadFpChar(int bufferId = 1);
-		boolean storeFpTemplate(int pageId, int bufferId = 1);
-		boolean loadFpTemplate(int pageId, int bufferId = 1);
-		boolean deleteFpTemplate(int pageId, int numberOfTemplatesToDelete = 1);
+		boolean storeFpTemplate(int pId, int bufferId = 1);
+		boolean loadFpTemplate(int pId, int bufferId = 1);
+		boolean deleteFpTemplate(int pId, int numberOfTemplatesToDelete = 1);
 		boolean emptyFpLibrary();
 		boolean matchFpCharBuffers();
 		boolean fpSearch(int bufferId = 1);
@@ -171,14 +171,14 @@ class R307_Fingerprint {
 		uint16_t packet_length;   // Packet Length - auto configured by readSystemParam function
 		uint16_t baud_rate;       // FP Uart Baud Rate - auto configured by readSystemParam function
 		int templateCount;   // FP valid template count - auto configured by getTemplateCount function
-		//bool FP_SERIALDEBUG = false; - enable this after testing and remove the defined FP_SERIALDEBUG above
+		int charMatchingScore;
+		//uncomment boolean variable below and comment the defined FP_SERIALDEBUG above after testing
+		bool FP_SERIALDEBUG = false; // enable or disable showing of messages
 	private:
 		// methods
 		uint8_t receiveAdditionalPacket(uint16_t timeout = FP_TIMEOUT);
 		String hexToString(uint8_t value);
 		String errorCodeDictionary(uint8_t errorCode);
-		
-		
 		//properties
 		uint32_t devicePassword;
 		uint8_t fp_content[256];

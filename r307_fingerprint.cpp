@@ -52,8 +52,21 @@ R307_Fingerprint::R307_Fingerprint(Stream *serial, uint32_t address, uint32_t pa
 */
 void R307_Fingerprint::begin(uint32_t baudrate) {
 	delay(500); // delay for fp boot up
-	if(hwSerial) hwSerial->begin(baudrate);
-	if(mcuNeedSoftwareSerial && swSerial) swSerial->begin(baudrate);
+	bool baudIsGood = false;
+	for(int a = 1; a <= 12; a++) {
+		if((int)baudrate == 9600*a)
+		{
+			baudIsGood = true;
+			break;
+		}
+	}
+	if( baudIsGood ) {
+		if(hwSerial) hwSerial->begin(baudrate);
+		if(mcuNeedSoftwareSerial && swSerial) swSerial->begin(baudrate);
+	} else {
+		if(hwSerial) hwSerial->begin(57600);
+		if(mcuNeedSoftwareSerial && swSerial) swSerial->begin(57600);
+	}
 }
 //=====================================================================================
 /*
@@ -65,11 +78,12 @@ void R307_Fingerprint::begin(uint32_t baudrate) {
 */
 boolean R307_Fingerprint::verifyPassword(uint32_t password) {
 	uint8_t result = sendData(0, FP_PASSWORDVERIFY, password);
-	String str = errorCodeDictionary(result); 
-	if( str != "" && FP_SERIALDEBUG && Serial ) 
-		Serial.println(str);
-	else
+	String str = errorCodeDictionary(result);
+	if( str != "") { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
+	else {
+		readSystemParam();
 		devicePassword = password;
+	}
 	return result == FP_OK;
 }
 //=====================================================================================
@@ -83,11 +97,9 @@ boolean R307_Fingerprint::setPassword(uint32_t newPassword) {
 	if (!fpSerial) return FP_RECEIVEPACKAGEFAIL;
 	
 	uint8_t result = sendData(0, FP_PASSWORDSET, newPassword);
-	String str = errorCodeDictionary(result); 
-	if( str != "" && FP_SERIALDEBUG && Serial ) 
-		Serial.println(str);
-	else
-		devicePassword = newPassword;
+	String str = errorCodeDictionary(result);
+	if( str != "") { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
+	else { devicePassword = newPassword; }
 	return result == FP_OK;
 }
 //=====================================================================================
@@ -102,10 +114,8 @@ boolean R307_Fingerprint::setAddress(uint32_t newAddress) {
 	
 	uint8_t result = sendData(0, FP_DEVADDSET, newAddress);
 	String str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) 
-		Serial.println(str);
-	else
-		deviceAddress = newAddress;
+	if( str != "") { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
+	else { deviceAddress = newAddress; }
 	return result == FP_OK;
 }
 //=====================================================================================
@@ -160,7 +170,7 @@ boolean R307_Fingerprint::setSystemParam(String mode, int value) {
 	}
 	uint8_t result = sendData(1, FP_SYSTEMPARAMSET, 0, paramNumber, paramValue );
 	str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) Serial.println(str);
+	if( str != "") { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
 	return result == FP_OK;
 }
 //=====================================================================================
@@ -181,10 +191,8 @@ boolean R307_Fingerprint::readSystemParam() {
 	baud_rate = (((uint16_t)fp_content[15] << 8) | fp_content[16]);
 	
 	String str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) 
-		Serial.println(str);
-	else
-		systemParamRead = true;
+	if( str != "") { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
+	else { systemParamRead = true; }
 	if( str == "" && FP_SERIALDEBUG && Serial ) {
 		Serial.println("====================================================");
 		Serial.println("System Parameters");
@@ -217,11 +225,10 @@ int R307_Fingerprint::getTemplateCount() {
 	uint8_t result = sendData(2, FP_TEMPLATECOUNT);
 	templateCount = 0;
 	String str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) {
-		Serial.println(str);
+	if( str != "" ) {
+		if(FP_SERIALDEBUG && Serial) { Serial.println(str); }
 		return -1;
-	}
-	if( str == "" ) {
+	} else {
 		templateCount = (int)((uint16_t)fp_content[0] << 8) | fp_content[1];
 		if(FP_SERIALDEBUG && Serial) Serial.println("Template Count => " + String(templateCount));
 	}
@@ -238,9 +245,9 @@ int R307_Fingerprint::getTemplateCount() {
 boolean R307_Fingerprint::generateFpImage() {
 	uint8_t result = sendData(2, FP_IMAGEGENERATE);
 	String str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) Serial.println(str);
-	else
-		createdImageBuffer = true;
+	if( str != "" ) { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } } 
+	else { createdImageBuffer = true; }
+		
 	return result == FP_OK;
 }
 //=====================================================================================
@@ -257,8 +264,8 @@ boolean R307_Fingerprint::downloadFpImage() {
 	}
 	uint8_t result = sendData(2, FP_IMAGEDOWNLOAD);
 	String str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) Serial.println(str);
-	if( str == "" ) receiveAdditionalPacket();
+	if( str != "" ) { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
+	else { receiveAdditionalPacket(); }
 	return result == FP_OK;
 }
 //=====================================================================================
@@ -274,11 +281,12 @@ boolean R307_Fingerprint::downloadFpImage() {
 boolean R307_Fingerprint::generateFpChar(int bufferId) {
 	if( !createdImageBuffer ) {
 		if( FP_SERIALDEBUG && Serial ) Serial.println(errorCodeDictionary(FP_FUNCTIONREQUIREMENTNOTMET));
+		Serial.println("stucked at genereateFpChar");
 		return false;
 	}
 	uint8_t result = sendData(3, FP_IMAGETOCHAR, 0, (uint8_t)bufferId);
 	String str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) Serial.println(str);
+	if( str != "") { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
 	if( result == FP_OK ) {
 		if( bufferId == 1 ) createdCharBuffer1 = true;
 		else createdCharBuffer2 = true;
@@ -299,7 +307,7 @@ boolean R307_Fingerprint::generateFpTemplate() {
 	}
 	uint8_t result = sendData(2, FP_TEMPLATEGENERATE);
 	String str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) Serial.println(str);
+	if( str != "") { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
 	return result == FP_OK;
 }
 //=====================================================================================
@@ -318,8 +326,8 @@ boolean R307_Fingerprint::downloadFpChar(int bufferId) {
 	}
 	uint8_t result = sendData(3, FP_TEMPLATEDOWNLOAD, 0, (uint8_t)bufferId);
 	String str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) Serial.println(str);
-	if( str == "" ) receiveAdditionalPacket();
+	if( str != "") { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
+	else { receiveAdditionalPacket(); }
 	return result == FP_OK;
 }
 //=====================================================================================
@@ -331,43 +339,43 @@ boolean R307_Fingerprint::downloadFpChar(int bufferId) {
 				   for charBuffer2
 	@ returns true if no problem encountered otherwise false
 */
-boolean R307_Fingerprint::storeFpTemplate(int pageId, int bufferId) {
+boolean R307_Fingerprint::storeFpTemplate(int pId, int bufferId) {
 	if( (bufferId == 1 && !createdCharBuffer1) || (bufferId == 2 && !createdCharBuffer2) ) {
 		if( FP_SERIALDEBUG && Serial ) Serial.println(errorCodeDictionary(FP_FUNCTIONREQUIREMENTNOTMET));
 		return false;
 	}
-	uint8_t result = sendData(4, FP_TEMPLATESTORE, 0, 0, (uint8_t)bufferId, (uint16_t)pageId);
+	uint8_t result = sendData(4, FP_TEMPLATESTORE, 0, 0, (uint8_t)bufferId, (uint16_t)pId);
 	String str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) Serial.println(str);
+	if( str != "") { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
 	return result == FP_OK;
 }
 //=====================================================================================
 /*
-	@ description: loads template at the specified location (pageId) of fp library
+	@ description: loads template at the specified location (pId) of fp library
 				   to charBuffer1 or charBuffer2
 	@ arguments : none
 	@ returns true if no problem encountered otherwise false
 */
-boolean R307_Fingerprint::loadFpTemplate(int pageId, int bufferId) {
-	uint8_t result = sendData(4, FP_TEMPLATELOAD, 0, 0, (uint8_t)bufferId, (uint16_t)pageId);
+boolean R307_Fingerprint::loadFpTemplate(int pId, int bufferId) {
+	uint8_t result = sendData(4, FP_TEMPLATELOAD, 0, 0, (uint8_t)bufferId, (uint16_t)pId);
 	String str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) Serial.println(str);
+	if( str != "") { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
 	return result == FP_OK;
 }
 //=====================================================================================
 /*
 	@ description: Deletes a segment (N) of templates in fp library starting from
-				   the specified pageId indicated
+				   the specified pId indicated
 	@ arguments :
-		pageId -> starting location in the fp library
-		numberOfTemplatesToDelete -> the number of template to delete starting from pageId
+		pId -> starting location in the fp library
+		numberOfTemplatesToDelete -> the number of template to delete starting from pId
 									 defaults at 1 template only
 	@ returns true if no problem encountered otherwise false
 */
-boolean R307_Fingerprint::deleteFpTemplate(int pageId, int numberOfTemplatesToDelete) {
-	uint8_t result = sendData(4, FP_TEMPLATEDELETE, 0, 0, (uint8_t)pageId, (uint16_t)numberOfTemplatesToDelete);
+boolean R307_Fingerprint::deleteFpTemplate(int pId, int numberOfTemplatesToDelete) {
+	uint8_t result = sendData(5, FP_TEMPLATEDELETE, 0, 0, 0, (uint16_t)pId, (uint16_t)numberOfTemplatesToDelete);
 	String str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) Serial.println(str);
+	if( str != "") { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
 	return result == FP_OK;
 }
 //=====================================================================================
@@ -379,7 +387,7 @@ boolean R307_Fingerprint::deleteFpTemplate(int pageId, int numberOfTemplatesToDe
 boolean R307_Fingerprint::emptyFpLibrary() {
 	uint8_t result = sendData(2, FP_LIBRARYCLEAR);
 	String str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) Serial.println(str);
+	if( str != "") { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
 	return result == FP_OK;
 }
 //=====================================================================================
@@ -396,7 +404,9 @@ boolean R307_Fingerprint::matchFpCharBuffers() {
 	}
 	uint8_t result = sendData(2, FP_TEMPLATEMATCHING);
 	String str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) Serial.println(str);
+	if( str != "") { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
+	uint16_t matchingScore = (uint16_t)(fp_content[0] >> 8 );
+	matchingScore |= (uint16_t)fp_content[1]; 
 	return result == FP_OK;
 }
 //=====================================================================================
@@ -405,16 +415,18 @@ boolean R307_Fingerprint::matchFpCharBuffers() {
 				   in charBuffer1 or charBuffer2
 	@ arguments : none
 	@ returns true if no problem encountered otherwise false
+	@ take note that readSystemParam function needs to be executed first before this
+		function can be used to get the capacity count 
 */
 boolean R307_Fingerprint::fpSearch(int bufferId) {
-	// TODO: change the returned value to pageId if no problems encountered
+	// TODO: change the returned value to pId if no problems encountered
 	if( !systemParamRead ) {
 		if( FP_SERIALDEBUG && Serial ) Serial.println(errorCodeDictionary(FP_FUNCTIONREQUIREMENTNOTMET));
 		return false;
 	}
 	uint8_t result = sendData(6, FP_FINGERSEARCH, 0, 0, (uint8_t)bufferId, 0x00, capacity);
 	String str = errorCodeDictionary(result);
-	if( str != "" && FP_SERIALDEBUG && Serial ) Serial.println(str);
+	if( str != "") { if(FP_SERIALDEBUG && Serial) { Serial.println(str); } }
 	return result == FP_OK;
 }
 //=====================================================================================
@@ -447,7 +459,6 @@ uint8_t R307_Fingerprint::sendData(int mode, uint8_t ic, uint32_t param1,
 //=====================================================================================
 void R307_Fingerprint::sendPacket( const R307_fp_packet &packet ) {
 	if( !fpSerial ) return;
-	
 	uint16_t dataPacket_length = packet.cmd_length + 2;
 	uint16_t checksum = (dataPacket_length >> 8) + (dataPacket_length & 0xFF) + packet.cmd_type;
 	
@@ -505,7 +516,6 @@ uint8_t R307_Fingerprint::receivePacket( R307_fp_packet *packet, uint16_t timeou
 	String col2 = "";
 	String col3 = "Checksum -> ";
 	contentByteCounter = 0;
-	
 	
 	while(true) {
 		while (!fpSerial->available()) {
