@@ -26,8 +26,6 @@ R307_Fingerprint::R307_Fingerprint(HardwareSerial *hs, uint32_t address, uint32_
 	deviceAddress = address;
 	devicePassword = password;
 	
-	if( mcuNeedSoftwareSerial )
-		swSerial = NULL;
 	hwSerial = hs;
 	fpSerial = hwSerial;
 }
@@ -37,8 +35,6 @@ R307_Fingerprint::R307_Fingerprint(Stream *serial, uint32_t address, uint32_t pa
 	devicePassword = password;
 	
 	hwSerial = NULL;
-	if( mcuNeedSoftwareSerial )
-		swSerial = NULL;
 	fpSerial = serial;
 }
 //=====================================================================================
@@ -62,10 +58,18 @@ void R307_Fingerprint::begin(uint32_t baudrate) {
 	}
 	if( baudIsGood ) {
 		if(hwSerial) hwSerial->begin(baudrate);
-		if(mcuNeedSoftwareSerial && swSerial) swSerial->begin(baudrate);
+		else {
+			#if mcuNeedSoftwareSerial
+				swSerial->begin(baudrate);
+			#endif
+		}
 	} else {
 		if(hwSerial) hwSerial->begin(57600);
-		if(mcuNeedSoftwareSerial && swSerial) swSerial->begin(57600);
+		else {
+			#if mcuNeedSoftwareSerial
+				swSerial->begin(57600);
+			#endif
+		}
 	}
 }
 //=====================================================================================
